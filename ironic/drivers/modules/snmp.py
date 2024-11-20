@@ -26,6 +26,8 @@ models.
 import abc
 import time
 
+from eventlet.asyncio import spawn_for_awaitable
+
 from oslo_log import log as logging
 from oslo_service import loopingcall
 from oslo_utils import importutils
@@ -41,7 +43,7 @@ from ironic.drivers import base
 pysnmp = importutils.try_import('pysnmp')
 if pysnmp:
     from pysnmp import error as snmp_error
-    from pysnmp import hlapi as snmp
+    from pysnmp.hlapi import asyncio as snmp
 
     snmp_auth_protocols = {
         'md5': snmp.usmHMACMD5AuthProtocol,
@@ -63,7 +65,6 @@ if pysnmp:
         'aes256blmt': snmp.usmAesBlumenthalCfb256Protocol,
         'none': snmp.usmNoPrivProtocol,
     }
-
 else:
     snmp = None
     snmp_error = None
@@ -263,11 +264,12 @@ class SNMPClient(object):
         :returns: The value of the requested object.
         """
         try:
-            snmp_gen = snmp.getCmd(self.snmp_engine,
-                                   self._get_auth(),
-                                   self._get_transport(),
-                                   self._get_context(),
-                                   snmp.ObjectType(snmp.ObjectIdentity(oid)))
+            snmp_gen =spawn_for_awaitable(
+                snmp.getCmd(self.snmp_engine,
+                            self._get_auth(),
+                            self._get_transport(),
+                            self._get_context(),
+                            snmp.ObjectType(snmp.ObjectIdentity(oid)))).wait()
 
         except snmp_error.PySnmpError as e:
             raise exception.SNMPFailure(operation="GET", error=e)
@@ -296,12 +298,13 @@ class SNMPClient(object):
         :returns: A list of values of the requested table object.
         """
         try:
-            snmp_gen = snmp.nextCmd(self.snmp_engine,
-                                    self._get_auth(),
-                                    self._get_transport(),
-                                    self._get_context(),
-                                    snmp.ObjectType(snmp.ObjectIdentity(oid)),
-                                    lexicographicMode=False)
+            snmp_gen = spawn_for_awaitable(
+                snmp.nextCmd(self.snmp_engine,
+                             self._get_auth(),
+                             self._get_transport(),
+                             self._get_context(),
+                             snmp.ObjectType(snmp.ObjectIdentity(oid)),
+                             lexicographicMode=False)).wait()
 
         except snmp_error.PySnmpError as e:
             raise exception.SNMPFailure(operation="GET_NEXT", error=e)
@@ -335,12 +338,13 @@ class SNMPClient(object):
         :raises: SNMPFailure if an SNMP request fails.
         """
         try:
-            snmp_gen = snmp.setCmd(self.snmp_engine,
-                                   self._get_auth(write_mode=True),
-                                   self._get_transport(),
-                                   self._get_context(),
-                                   snmp.ObjectType(
-                                       snmp.ObjectIdentity(oid), value))
+            snmp_gen = spawn_for_awaitable(
+                snmp.setCmd(self.snmp_engine,
+                            self._get_auth(write_mode=True),
+                            self._get_transport(),
+                            self._get_context(),
+                            snmp.ObjectType(
+                                snmp.ObjectIdentity(oid), value))).wait()
 
         except snmp_error.PySnmpError as e:
             raise exception.SNMPFailure(operation="SET", error=e)

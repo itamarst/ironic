@@ -16,12 +16,13 @@
 
 """Test class for SNMP power driver module."""
 
+from asyncio import Future
 import time
 from unittest import mock
 
 from oslo_config import cfg
 from pysnmp import error as snmp_error
-from pysnmp import hlapi as pysnmp
+from pysnmp.hlapi import asyncio as pysnmp
 
 from ironic.common import exception
 from ironic.common import states
@@ -253,7 +254,7 @@ class SNMPClientTestCase(base.TestCase):
         mock_setcmd.return_value = iter([("", None, 0,
                                           [var_bind])])
         client = snmp.SNMPClient(self.address, self.port, snmp.SNMP_V3)
-        client.set(self.oid, self.value)
+        result = client.set(self.oid, self.value)
         self.assertEqual(1, mock_setcmd.call_count)
 
     @mock.patch.object(pysnmp, 'setCmd', autospec=True)
